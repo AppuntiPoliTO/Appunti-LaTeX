@@ -8,5 +8,10 @@
         "Elementi di costruzione di macchine/cazzi.txt": 13,
         "Elementi di costruzione di macchine/cazzi.link.txt": 14
     },
-    "index_msg_id": 10
+    "index_msg_id": 10,
+    "hashes": {
+        "Elementi di costruzione di macchine/cazzi.txt": "997f2730fe13941ccc09696733393551",
+        "Elementi di costruzione di macchine/cazzi.link.txt": "694abaae852e2cbc8651be026d2cb6df",
+        "Fisica 2/esempio_fisica.txt": "1085467bf805ab1bcd4b8542a21ed907"
+    }
 }
