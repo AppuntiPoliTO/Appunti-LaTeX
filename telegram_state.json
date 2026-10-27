@@ -2,19 +2,22 @@
     "topics": {
         "Fisica 2": 8,
         "Elementi di costruzione di macchine": 12,
-        "TMM": 20
+        "TMM": 20,
+        "Meccanica dei fluidi": 22
     },
     "files": {
         "Elementi di costruzione di macchine/cazzi.txt": 13,
         "Elementi di costruzione di macchine/cazzi.link.txt": 14,
         "Fisica 2/Fisica 2 Descrovi.pdf": 18,
-        "TMM/domande.link.txt": 21
+        "TMM/domande.link.txt": 21,
+        "Meccanica dei fluidi/Meccanica dei Fluidi.pdf": 23
     },
     "index_msg_id": 10,
     "hashes": {
         "Elementi di costruzione di macchine/cazzi.txt": "997f2730fe13941ccc09696733393551",
         "Elementi di costruzione di macchine/cazzi.link.txt": "694abaae852e2cbc8651be026d2cb6df",
         "Fisica 2/Fisica 2 Descrovi.pdf": "952e16b6d1474ecb5f9173fd8c7de7ce",
-        "TMM/domande.link.txt": "9883903e985cac0a55c7a42d826eac1d"
+        "TMM/domande.link.txt": "9883903e985cac0a55c7a42d826eac1d",
+        "Meccanica dei fluidi/Meccanica dei Fluidi.pdf": "d691ba9509633e7c8d067bcd27cf7f0d"
     }
 }
