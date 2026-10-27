@@ -1,9 +1,11 @@
 {
     "topics": {
-        "Fisica 2": 8
+        "Fisica 2": 8,
+        "Elementi di costruzione di macchine": 12
     },
     "files": {
-        "Fisica 2/esempio_fisica.txt": 9
+        "Fisica 2/esempio_fisica.txt": 9,
+        "Elementi di costruzione di macchine/cazzi.txt": 13
     },
     "index_msg_id": 10
 }
