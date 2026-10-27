@@ -1,12 +1,8 @@
-﻿{
+{
     "topics": {
-        "Analisi_1": 4,
-        "Fisica": 6,
         "Fisica 2": 8
     },
     "files": {
-        "Analisi_1/esempio_analisi.txt": 5,
-        "Fisica/esempio_fisica.txt": 7,
         "Fisica 2/esempio_fisica.txt": 9
     },
     "index_msg_id": 10
