@@ -1,6 +1,7 @@
 ﻿import os
 import json
 import requests
+import subprocess
 from datetime import datetime
 
 TOKEN = os.environ['TELEGRAM_TOKEN']
@@ -9,6 +10,22 @@ STATE_FILE = 'telegram_state.json'
 
 ALLOWED_EXTENSIONS = {'.pdf', '.md', '.txt', '.docx', '.pptx', '.zip', '.png', '.jpg', '.url'}
 IGNORE_DIRS = {'.git', '.github', '__pycache__'}
+
+# Legge la nota che hai scritto in aggiorna.bat (dal messaggio di commit)
+try:
+    commit_msg = subprocess.check_output(['git', 'log', '-1', '--pretty=%B']).decode('utf-8', errors='ignore').strip()
+except:
+    commit_msg = ''
+
+ignore_notes = {'Aggiornamento appunti', 'Aggiorna stato Telegram [skip ci]', 'Primo commit'}
+note_text = f'\n📝 <b>Info:</b> <i>{commit_msg}</i>' if (commit_msg and commit_msg not in ignore_notes) else ''
+
+# Scopre quali file sono stati modificati/aggiunti esattamente in QUESTO push
+try:
+    changed_out = subprocess.check_output(['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD']).decode('utf-8', errors='ignore')
+    changed_files = set(line.strip().replace('\\', '/') for line in changed_out.splitlines() if line.strip())
+except:
+    changed_files = set()
 
 if os.path.exists(STATE_FILE):
     with open(STATE_FILE, 'r', encoding='utf-8-sig') as f:
@@ -68,12 +85,15 @@ for subject in subjects:
                 rel_path = os.path.relpath(os.path.join(root, file), '.').replace('\\', '/')
                 display_name = os.path.relpath(rel_path, subject).replace('\\', '/')
                 
+                # Se il file esiste già su Telegram e NON è stato toccato in questo push, non toccarlo!
+                if rel_path in state['files'] and rel_path not in changed_files:
+                    continue
+
                 # CASO A: E' UN FILE DI LINK (.link.txt oppure .url)
                 if file.lower().endswith('.link.txt') or ext == '.url':
                     with open(rel_path, 'r', encoding='utf-8-sig') as lf:
                         raw_lines = [line.strip() for line in lf if line.strip()]
                     
-                    # Se è un collegamento .url trascinato dal browser
                     if ext == '.url':
                         clean_title = display_name[:-4].replace('_', ' ')
                         target_url = ''
@@ -82,7 +102,6 @@ for subject in subjects:
                                 target_url = l[4:].strip()
                         links_formatted = f'🌐 <a href="{target_url}"><b>{clean_title}</b></a>'
                     else:
-                        # Se è un file .link.txt scritto a mano
                         clean_title = display_name[:-9].replace('_', ' ')
                         links_list = []
                         for l in raw_lines:
@@ -93,7 +112,7 @@ for subject in subjects:
                                 links_list.append(f'🌐 {l}')
                         links_formatted = '\n'.join(links_list)
 
-                    msg_text = f'🔗 <b>{clean_title}</b>\n\n{links_formatted}\n\n🔄 <i>Aggiornato il: {now}</i>'
+                    msg_text = f'🔗 <b>{clean_title}</b>\n\n{links_formatted}{note_text}\n\n🔄 <i>Aggiornato il: {now}</i>'
 
                     if rel_path in state['files']:
                         msg_id = state['files'][rel_path]
@@ -111,7 +130,7 @@ for subject in subjects:
 
                 # CASO B: E' UN FILE NORMALE (PDF, ZIP, IMMAGINE, ECC.)
                 else:
-                    caption = f'📚 <b>{subject.replace("_", " ")}</b>\n📄 <code>{display_name}</code>\n🔄 <i>Aggiornato il: {now}</i>'
+                    caption = f'📚 <b>{subject.replace("_", " ")}</b>\n📄 <code>{display_name}</code>{note_text}\n🔄 <i>Aggiornato il: {now}</i>'
 
                     if rel_path in state['files']:
                         msg_id = state['files'][rel_path]
