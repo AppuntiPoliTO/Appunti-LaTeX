@@ -22,6 +22,30 @@ now = datetime.now().strftime('%d/%m/%Y %H:%M')
 subjects = [d for d in os.listdir('.') if os.path.isdir(d) and d not in IGNORE_DIRS and not d.startswith('.')]
 subjects.sort()
 
+# --- PULIZIA AUTOMATICA CARTELLE RIMOSSE ---
+for old_subj in list(state['topics'].keys()):
+    if old_subj not in subjects:
+        t_id = state['topics'][old_subj]
+        # Elimina il Topic da Telegram
+        requests.post(f'https://api.telegram.org/bot{TOKEN}/deleteForumTopic', json={'chat_id': CHAT_ID, 'message_thread_id': t_id})
+        del state['topics'][old_subj]
+        # Rimuove i file associati dalla memoria
+        for f_path in list(state['files'].keys()):
+            if f_path.startswith(old_subj + '/'):
+                del state['files'][f_path]
+        state_updated = True
+        print(f'Rimosso Topic eliminato: {old_subj}')
+
+# --- PULIZIA AUTOMATICA SINGOLI FILE RIMOSSI ---
+for f_path in list(state['files'].keys()):
+    if not os.path.exists(f_path):
+        msg_id = state['files'][f_path]
+        requests.post(f'https://api.telegram.org/bot{TOKEN}/deleteMessage', json={'chat_id': CHAT_ID, 'message_id': msg_id})
+        del state['files'][f_path]
+        state_updated = True
+        print(f'Rimosso file eliminato: {f_path}')
+
+# --- SINCRONIZZAZIONE CARTELLE E FILE ATTUALI ---
 for subject in subjects:
     if subject not in state['topics']:
         url = f'https://api.telegram.org/bot{TOKEN}/createForumTopic'
@@ -68,9 +92,8 @@ for subject in subjects:
                         state['files'][rel_path] = res.json()['result']['message_id']
                         state_updated = True
                         print(f'[{subject}] Nuovo file inviato: {display_name}')
-                    else:
-                        print(f'[{subject}] Errore invio {display_name}: {res.text}')
 
+# --- AGGIORNAMENTO INDICE ---
 if state['topics']:
     clean_chat_id = str(CHAT_ID).replace('-100', '')
     index_text = '🗂 <b>INDICE DELLE MATERIE</b>\n<i>Clicca su una materia per aprire la stanza con gli appunti aggiornati:</i>\n\n'
@@ -100,6 +123,5 @@ if state['topics']:
         })
 
 if state_updated:
-    with open(STATE_FILE, 'w', encoding='utf-8-sig') as f:
+    with open(STATE_FILE, 'w', encoding='utf-8') as f:
         json.dump(state, f, indent=4)
-
