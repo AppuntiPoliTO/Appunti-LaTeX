@@ -7,7 +7,7 @@ TOKEN = os.environ['TELEGRAM_TOKEN']
 CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 STATE_FILE = 'telegram_state.json'
 
-ALLOWED_EXTENSIONS = {'.pdf', '.md', '.txt', '.docx', '.pptx', '.zip', '.png', '.jpg'}
+ALLOWED_EXTENSIONS = {'.pdf', '.md', '.txt', '.docx', '.pptx', '.zip', '.png', '.jpg', '.url'}
 IGNORE_DIRS = {'.git', '.github', '__pycache__'}
 
 if os.path.exists(STATE_FILE):
@@ -26,10 +26,8 @@ subjects.sort()
 for old_subj in list(state['topics'].keys()):
     if old_subj not in subjects:
         t_id = state['topics'][old_subj]
-        # Elimina il Topic da Telegram
         requests.post(f'https://api.telegram.org/bot{TOKEN}/deleteForumTopic', json={'chat_id': CHAT_ID, 'message_thread_id': t_id})
         del state['topics'][old_subj]
-        # Rimuove i file associati dalla memoria
         for f_path in list(state['files'].keys()):
             if f_path.startswith(old_subj + '/'):
                 del state['files'][f_path]
@@ -45,7 +43,7 @@ for f_path in list(state['files'].keys()):
         state_updated = True
         print(f'Rimosso file eliminato: {f_path}')
 
-# --- SINCRONIZZAZIONE CARTELLE E FILE ATTUALI ---
+# --- SINCRONIZZAZIONE CARTELLE, FILE E LINK ---
 for subject in subjects:
     if subject not in state['topics']:
         url = f'https://api.telegram.org/bot{TOKEN}/createForumTopic'
@@ -69,29 +67,73 @@ for subject in subjects:
             if ext in ALLOWED_EXTENSIONS:
                 rel_path = os.path.relpath(os.path.join(root, file), '.').replace('\\', '/')
                 display_name = os.path.relpath(rel_path, subject).replace('\\', '/')
-                caption = f'📚 <b>{subject.replace("_", " ")}</b>\n📄 <code>{display_name}</code>\n🔄 <i>Aggiornato il: {now}</i>'
+                
+                # CASO A: E' UN FILE DI LINK (.link.txt oppure .url)
+                if file.lower().endswith('.link.txt') or ext == '.url':
+                    with open(rel_path, 'r', encoding='utf-8-sig') as lf:
+                        raw_lines = [line.strip() for line in lf if line.strip()]
+                    
+                    # Se è un collegamento .url trascinato dal browser
+                    if ext == '.url':
+                        clean_title = display_name[:-4].replace('_', ' ')
+                        target_url = ''
+                        for l in raw_lines:
+                            if l.upper().startswith('URL='):
+                                target_url = l[4:].strip()
+                        links_formatted = f'🌐 <a href="{target_url}"><b>{clean_title}</b></a>'
+                    else:
+                        # Se è un file .link.txt scritto a mano
+                        clean_title = display_name[:-9].replace('_', ' ')
+                        links_list = []
+                        for l in raw_lines:
+                            if '|' in l:
+                                nome, indirizzo = l.split('|', 1)
+                                links_list.append(f'🌐 <a href="{indirizzo.strip()}"><b>{nome.strip()}</b></a>')
+                            else:
+                                links_list.append(f'🌐 {l}')
+                        links_formatted = '\n'.join(links_list)
 
-                if rel_path in state['files']:
-                    msg_id = state['files'][rel_path]
-                    url = f'https://api.telegram.org/bot{TOKEN}/editMessageMedia'
-                    media = json.dumps({'type': 'document', 'media': 'attach://document', 'caption': caption, 'parse_mode': 'HTML'})
-                    with open(rel_path, 'rb') as f:
-                        res = requests.post(url, data={'chat_id': CHAT_ID, 'message_id': msg_id, 'media': media}, files={'document': f})
-                    if res.status_code == 200:
-                        print(f'[{subject}] File aggiornato: {display_name}')
+                    msg_text = f'🔗 <b>{clean_title}</b>\n\n{links_formatted}\n\n🔄 <i>Aggiornato il: {now}</i>'
+
+                    if rel_path in state['files']:
+                        msg_id = state['files'][rel_path]
+                        url = f'https://api.telegram.org/bot{TOKEN}/editMessageText'
+                        res = requests.post(url, json={'chat_id': CHAT_ID, 'message_id': msg_id, 'text': msg_text, 'parse_mode': 'HTML'})
+                        if res.status_code == 200:
+                            print(f'[{subject}] Link aggiornato: {clean_title}')
+                    else:
+                        url = f'https://api.telegram.org/bot{TOKEN}/sendMessage'
+                        res = requests.post(url, json={'chat_id': CHAT_ID, 'message_thread_id': topic_id, 'text': msg_text, 'parse_mode': 'HTML'})
+                        if res.status_code == 200:
+                            state['files'][rel_path] = res.json()['result']['message_id']
+                            state_updated = True
+                            print(f'[{subject}] Nuovo link inviato: {clean_title}')
+
+                # CASO B: E' UN FILE NORMALE (PDF, ZIP, IMMAGINE, ECC.)
                 else:
-                    url = f'https://api.telegram.org/bot{TOKEN}/sendDocument'
-                    with open(rel_path, 'rb') as f:
-                        res = requests.post(url, data={
-                            'chat_id': CHAT_ID,
-                            'message_thread_id': topic_id,
-                            'caption': caption,
-                            'parse_mode': 'HTML'
-                        }, files={'document': f})
-                    if res.status_code == 200:
-                        state['files'][rel_path] = res.json()['result']['message_id']
-                        state_updated = True
-                        print(f'[{subject}] Nuovo file inviato: {display_name}')
+                    caption = f'📚 <b>{subject.replace("_", " ")}</b>\n📄 <code>{display_name}</code>\n🔄 <i>Aggiornato il: {now}</i>'
+
+                    if rel_path in state['files']:
+                        msg_id = state['files'][rel_path]
+                        url = f'https://api.telegram.org/bot{TOKEN}/editMessageMedia'
+                        media = json.dumps({'type': 'document', 'media': 'attach://document', 'caption': caption, 'parse_mode': 'HTML'})
+                        with open(rel_path, 'rb') as f:
+                            res = requests.post(url, data={'chat_id': CHAT_ID, 'message_id': msg_id, 'media': media}, files={'document': f})
+                        if res.status_code == 200:
+                            print(f'[{subject}] File aggiornato: {display_name}')
+                    else:
+                        url = f'https://api.telegram.org/bot{TOKEN}/sendDocument'
+                        with open(rel_path, 'rb') as f:
+                            res = requests.post(url, data={
+                                'chat_id': CHAT_ID,
+                                'message_thread_id': topic_id,
+                                'caption': caption,
+                                'parse_mode': 'HTML'
+                            }, files={'document': f})
+                        if res.status_code == 200:
+                            state['files'][rel_path] = res.json()['result']['message_id']
+                            state_updated = True
+                            print(f'[{subject}] Nuovo file inviato: {display_name}')
 
 # --- AGGIORNAMENTO INDICE ---
 if state['topics']:
@@ -116,10 +158,7 @@ if state['topics']:
     else:
         url = f'https://api.telegram.org/bot{TOKEN}/editMessageText'
         requests.post(url, json={
-            'chat_id': CHAT_ID,
-            'message_id': state['index_msg_id'],
-            'text': index_text,
-            'parse_mode': 'HTML'
+            'chat_id': CHAT_ID, 'message_id': state['index_msg_id'], 'text': index_text, 'parse_mode': 'HTML'
         })
 
 if state_updated:
