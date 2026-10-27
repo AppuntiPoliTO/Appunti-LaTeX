@@ -1,5 +1,6 @@
 ﻿import os
 import json
+import hashlib
 import requests
 import subprocess
 from datetime import datetime
@@ -11,27 +12,30 @@ STATE_FILE = 'telegram_state.json'
 ALLOWED_EXTENSIONS = {'.pdf', '.md', '.txt', '.docx', '.pptx', '.zip', '.png', '.jpg', '.url'}
 IGNORE_DIRS = {'.git', '.github', '__pycache__'}
 
-# Legge la nota che hai scritto in aggiorna.bat (dal messaggio di commit)
+def get_file_hash(filepath):
+    h = hashlib.md5()
+    with open(filepath, 'rb') as f:
+        while chunk := f.read(8192):
+            h.update(chunk)
+    return h.hexdigest()
+
+# Legge la nota che hai scritto in aggiorna.bat
 try:
     commit_msg = subprocess.check_output(['git', 'log', '-1', '--pretty=%B']).decode('utf-8', errors='ignore').strip()
 except:
     commit_msg = ''
 
-ignore_notes = {'Aggiornamento appunti', 'Aggiorna stato Telegram [skip ci]', 'Primo commit'}
+ignore_notes = {'Aggiornamento appunti', 'Aggiorna stato Telegram [skip ci]', 'Primo commit', 'Fix'}
 note_text = f'\n📝 <b>Info:</b> <i>{commit_msg}</i>' if (commit_msg and commit_msg not in ignore_notes) else ''
-
-# Scopre quali file sono stati modificati/aggiunti esattamente in QUESTO push
-try:
-    changed_out = subprocess.check_output(['git', 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD']).decode('utf-8', errors='ignore')
-    changed_files = set(line.strip().replace('\\', '/') for line in changed_out.splitlines() if line.strip())
-except:
-    changed_files = set()
 
 if os.path.exists(STATE_FILE):
     with open(STATE_FILE, 'r', encoding='utf-8-sig') as f:
         state = json.load(f)
 else:
-    state = {'topics': {}, 'files': {}, 'index_msg_id': None}
+    state = {'topics': {}, 'files': {}, 'hashes': {}, 'index_msg_id': None}
+
+if 'hashes' not in state:
+    state['hashes'] = {}
 
 state_updated = False
 now = datetime.now().strftime('%d/%m/%Y %H:%M')
@@ -48,6 +52,7 @@ for old_subj in list(state['topics'].keys()):
         for f_path in list(state['files'].keys()):
             if f_path.startswith(old_subj + '/'):
                 del state['files'][f_path]
+                state['hashes'].pop(f_path, None)
         state_updated = True
         print(f'Rimosso Topic eliminato: {old_subj}')
 
@@ -57,6 +62,7 @@ for f_path in list(state['files'].keys()):
         msg_id = state['files'][f_path]
         requests.post(f'https://api.telegram.org/bot{TOKEN}/deleteMessage', json={'chat_id': CHAT_ID, 'message_id': msg_id})
         del state['files'][f_path]
+        state['hashes'].pop(f_path, None)
         state_updated = True
         print(f'Rimosso file eliminato: {f_path}')
 
@@ -85,8 +91,10 @@ for subject in subjects:
                 rel_path = os.path.relpath(os.path.join(root, file), '.').replace('\\', '/')
                 display_name = os.path.relpath(rel_path, subject).replace('\\', '/')
                 
-                # Se il file esiste già su Telegram e NON è stato toccato in questo push, non toccarlo!
-                if rel_path in state['files'] and rel_path not in changed_files:
+                current_hash = get_file_hash(rel_path)
+                
+                # Se il file è già su Telegram ed è IDENTICO a prima, saltalo!
+                if rel_path in state['files'] and state['hashes'].get(rel_path) == current_hash:
                     continue
 
                 # CASO A: E' UN FILE DI LINK (.link.txt oppure .url)
@@ -119,12 +127,15 @@ for subject in subjects:
                         url = f'https://api.telegram.org/bot{TOKEN}/editMessageText'
                         res = requests.post(url, json={'chat_id': CHAT_ID, 'message_id': msg_id, 'text': msg_text, 'parse_mode': 'HTML'})
                         if res.status_code == 200:
+                            state['hashes'][rel_path] = current_hash
+                            state_updated = True
                             print(f'[{subject}] Link aggiornato: {clean_title}')
                     else:
                         url = f'https://api.telegram.org/bot{TOKEN}/sendMessage'
                         res = requests.post(url, json={'chat_id': CHAT_ID, 'message_thread_id': topic_id, 'text': msg_text, 'parse_mode': 'HTML'})
                         if res.status_code == 200:
                             state['files'][rel_path] = res.json()['result']['message_id']
+                            state['hashes'][rel_path] = current_hash
                             state_updated = True
                             print(f'[{subject}] Nuovo link inviato: {clean_title}')
 
@@ -139,7 +150,11 @@ for subject in subjects:
                         with open(rel_path, 'rb') as f:
                             res = requests.post(url, data={'chat_id': CHAT_ID, 'message_id': msg_id, 'media': media}, files={'document': f})
                         if res.status_code == 200:
+                            state['hashes'][rel_path] = current_hash
+                            state_updated = True
                             print(f'[{subject}] File aggiornato: {display_name}')
+                        else:
+                            print(f'[{subject}] Risposta Telegram su {display_name}: {res.text}')
                     else:
                         url = f'https://api.telegram.org/bot{TOKEN}/sendDocument'
                         with open(rel_path, 'rb') as f:
@@ -151,8 +166,11 @@ for subject in subjects:
                             }, files={'document': f})
                         if res.status_code == 200:
                             state['files'][rel_path] = res.json()['result']['message_id']
+                            state['hashes'][rel_path] = current_hash
                             state_updated = True
                             print(f'[{subject}] Nuovo file inviato: {display_name}')
+                        else:
+                            print(f'[{subject}] Errore invio {display_name}: {res.text}')
 
 # --- AGGIORNAMENTO INDICE ---
 if state['topics']:
