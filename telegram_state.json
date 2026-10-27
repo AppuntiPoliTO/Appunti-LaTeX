@@ -1,17 +1,20 @@
 {
     "topics": {
         "Fisica 2": 8,
-        "Elementi di costruzione di macchine": 12
+        "Elementi di costruzione di macchine": 12,
+        "Meccanica dei Fluidi": 15
     },
     "files": {
         "Fisica 2/esempio_fisica.txt": 9,
         "Elementi di costruzione di macchine/cazzi.txt": 13,
-        "Elementi di costruzione di macchine/cazzi.link.txt": 14
+        "Elementi di costruzione di macchine/cazzi.link.txt": 14,
+        "Meccanica dei Fluidi/Meccanica dei Fluidi.pdf": 16
     },
     "index_msg_id": 10,
     "hashes": {
         "Elementi di costruzione di macchine/cazzi.txt": "997f2730fe13941ccc09696733393551",
         "Elementi di costruzione di macchine/cazzi.link.txt": "694abaae852e2cbc8651be026d2cb6df",
-        "Fisica 2/esempio_fisica.txt": "83787d05e3f7e8f1d491a2290653962f"
+        "Fisica 2/esempio_fisica.txt": "83787d05e3f7e8f1d491a2290653962f",
+        "Meccanica dei Fluidi/Meccanica dei Fluidi.pdf": "7b6e8f9dd3e109da7ffca82719d10d61"
     }
 }
