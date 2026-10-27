@@ -11,7 +11,7 @@ ALLOWED_EXTENSIONS = {'.pdf', '.md', '.txt', '.docx', '.pptx', '.zip', '.png', '
 IGNORE_DIRS = {'.git', '.github', '__pycache__'}
 
 if os.path.exists(STATE_FILE):
-    with open(STATE_FILE, 'r', encoding='utf-8') as f:
+    with open(STATE_FILE, 'r', encoding='utf-8-sig') as f:
         state = json.load(f)
 else:
     state = {'topics': {}, 'files': {}, 'index_msg_id': None}
@@ -100,5 +100,6 @@ if state['topics']:
         })
 
 if state_updated:
-    with open(STATE_FILE, 'w', encoding='utf-8') as f:
+    with open(STATE_FILE, 'w', encoding='utf-8-sig') as f:
         json.dump(state, f, indent=4)
+
